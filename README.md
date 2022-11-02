@@ -28,7 +28,7 @@ networks:
   nginx-proxy:
     external: true
 volumes:
-  nginx-static
+  nginx-static:
     external: true
 ```
 
