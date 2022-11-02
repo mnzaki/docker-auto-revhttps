@@ -22,7 +22,7 @@ services:
         volumes_from:
             - nginx-data
         networks:
-            - proxy-tier
+            - nginx-proxy
               ##logging:
               ##  driver: gelf
               ##  options:
@@ -40,7 +40,7 @@ services:
         volumes:
             - /var/run/docker.sock:/tmp/docker.sock:ro
         networks:
-            - proxy-tier
+            - nginx-proxy
 
     nginx-letsencrypt:
         image: jrcs/letsencrypt-nginx-proxy-companion
@@ -55,7 +55,7 @@ services:
             - NGINX_DOCKER_GEN_CONTAINER=nginx-gen
             - NGINX_PROXY_CONTAINER=nginx
         networks:
-            - proxy-tier
+            - nginx-proxy
 
 volumes:
   nginx-certs:
@@ -63,6 +63,5 @@ volumes:
     external: true
 
 networks:
-    proxy-tier:
-        external:
-            name: nginx-proxy
+  nginx-proxy:
+      external: true

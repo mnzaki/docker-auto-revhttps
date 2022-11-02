@@ -1,53 +1,84 @@
-# Notes
+# Automatic Reverse Proxy for multiple docker-compose installations
 
-- This is a docker nginx config based on https://github.com/matthiasnoback/nginx-multi-host-docker which itself seems to be based on https://github.com/jwilder/nginx-proxy
-
-- Our copy has various modifications:
-    - `nginx-data` service is simplified to allow for more streamlined updates
-      to the template (nginx.tmpl) by bind mounting `./nginx-data`
-    - `nginx-static` and `nginx-certs` volumes to hold static files and certs
-      respectively
-    - `nginx-vhost` dir in this repo contains per virtual host configs
-    - `nginx.tmpl` handles new "protocol" "http+static", and adds advanced logging
-    - `nginx` service logs directly to graylog (see `infra/docker-graylog`)
+- Generates nginx configurations based on `nginx-data/nginx.tmpl`
+- Generates and automatiically renews [Let's Encrypt](http://letsencrypt.org/) certificates.
+- `nginx-static` and `nginx-certs` volumes hold static files and certs respectively
+- `nginx-vhost` dir may contain per-virtual-host configs
+- `nginx.tmpl` handles new "protocol" "http+static", and adds advanced logging
+- `nginx` service logs directly to graylog (see `infra/docker-graylog`)
 
 # Setup for running multiple websites on a single server
 
-- Uses nginx as a proxy server, and the [docker-gen](https://github.com/jwilder/docker-gen) and [docker-letsencrypt-nginx-proxy-companion](https://github.com/jwilder/docker-letsencrypt-nginx-proxy-companion) container utilities.
-- Serves secure websites with automatically generated and renewed [Let's Encrypt](http://letsencrypt.org/) certificates.
-- Only exposes one web server, connects to other web servers using a custom network.
-
 ## Usage
 
-Do this once on your server:
+First create an external volume and network that all the projects (different
+`docker-compose.yml` files) will share with `docker-auto-revhttps`.
+This needs to be done only once on the physical server:
+
 ```sh
 docker network create --driver bridge nginx-proxy
+docker volume create nginx-static
 ```
 
-1. Now *for every service* you want to expose on the same server, edit it's
-definition in its own `docker-compose.yml` file and add the following:
+Now, for every project, edit its `docker-compose.yml` file and declare the external
+network and volume by adding this at the top level:
 
-```
-services:
-    web:
-      environment:
-        - VIRTUAL_HOST=your.hostname.com
-        - VIRTUAL_NETWORK=nginx-proxy
-        - LETSENCRYPT_HOST=your.hostname.com
-        - LETSENCRYPT_EMAIL=your@email.com
-      networks:
-        - proxy-tier
-
+```yml
 networks:
-    proxy-tier:
-        external:
-            name: nginx-proxy
+  nginx-proxy:
+    external: true
+volumes:
+  nginx-static
+    external: true
 ```
 
-2. Deploy the service by running `docker-compose`
+Now suppose this docker-compose.yml file has a few different services and one of
+them is called `web` which listens on its port 80 as the entry point for the
+project. We want this service to be picked up by `auto-revhttps` so we add the
+following environment variables and networks configuration to it:
+
+> Note the `[...]` implies snipped out details
+
+```yml
+services:
+  web:
+    networks:
+      - default
+      - nginx-proxy
+    environment:
+      [...]
+      - VIRTUAL_HOST=your.hostname.com
+      - VIRTUAL_PORT=80
+      - VIRTUAL_NETWORK=nginx-proxy
+    [...]
+  [...]
+[...]
+
 ```
+
+Note that we add the `default` network explicitly as otherwise the `web` service
+will not be able to access the other services within the project.
+
+If the `web` service has a `ports` definition and uses port `80` or `443` of the
+host then you *must* remove that definition otherwise it will conflict with
+`auto-revhttps` itself.
+
+Furthermore, to generate SSL certificates, then add the following environment
+variables as well:
+```yml
+      - LETSENCRYPT_HOST=your.hostname.com(,another.hostname.com,...)
+      - LETSENCRYPT_EMAIL=your@email.com
+```
+
+`LETSENCRYPT_HOST` can either be 1 hostname, or several comma separated
+hostnames.
+
+And finally deploy `your-project`:
+```sh
+cd your-project
 docker-compose up -d --force-recreate --no-build
 ```
+
 
 It may take a minute or so before the secure site can be reached (because the certificate has to be created first).
 
@@ -73,4 +104,8 @@ If you need to force renewal of the letsencrypt certificates:
 ```
 docker-compose exec nginx-letsencrypt /app/force_renew
 ```
+
+# History
+- This is a docker nginx config based on https://github.com/matthiasnoback/nginx-multi-host-docker which itself seems to be based on https://github.com/jwilder/nginx-proxy
+- Uses nginx as a proxy server, and the [docker-gen](https://github.com/jwilder/docker-gen) and [docker-letsencrypt-nginx-proxy-companion](https://github.com/jwilder/docker-letsencrypt-nginx-proxy-companion) container utilities.
 
