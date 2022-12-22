@@ -405,6 +405,9 @@ server {
 	include /etc/nginx/network_internal.conf;
 	{{ end }}
 
+	set $upstream_name {{ trim $upstream_name }};
+	set $vhost_root /usr/share/nginx/html/{{ trim $vhost_root }};
+
 	{{ if (exists (printf "/etc/nginx/vhost.d/%s" $host)) }}
 	include {{ printf "/etc/nginx/vhost.d/%s" $host }};
 	{{ else if (exists "/etc/nginx/vhost.d/default") }}
@@ -457,6 +460,9 @@ server {
 	limit_req zone={{ $limit_req_zone }};
 	{{ end }}
 	return 500;
+
+	set $upstream_name {{ trim $upstream_name }};
+	set $vhost_root /usr/share/nginx/html/{{ trim $vhost_root }};
 
 	ssl_certificate /etc/nginx/certs/default.crt;
 	ssl_certificate_key /etc/nginx/certs/default.key;
