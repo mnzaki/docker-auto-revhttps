@@ -288,6 +288,11 @@ server {
 	{{ if $limit_req_zone }}
 	limit_req zone={{ $limit_req_zone }};
 	{{ end }}
+
+	{{ if (exists "/etc/nginx/vhost.d/default") }}
+	include /etc/nginx/vhost.d/default;
+	{{ end }}
+
 	return 301 https://$host$request_uri;
 }
 {{ end }}
