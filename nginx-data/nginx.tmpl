@@ -293,7 +293,9 @@ server {
 	include /etc/nginx/vhost.d/default;
 	{{ end }}
 
-	return 301 https://$host$request_uri;
+	location / {
+		return 301 https://$host$request_uri;
+	}
 }
 {{ end }}
 
